@@ -7,7 +7,6 @@
 .text
 .globl initialize
 initialize:
- # TODO: HANDLE DOUBLE SPACES & CHECK IF COL=[1,10] AND ROW=[1,10]
  # inputs: a0=filename, a1=buffer
  # registers changed: a0, a1, a2, t0, t1, t2, t3
  li $v0, 13 # open file
@@ -306,7 +305,7 @@ complete_write_file:
 rotate_clkws_90:
  # inputs: a0=buffer, a1=filename
  # registers changed: a0, a1, t0, t1, t2, t3, t4, t5, t6, t7, t8
-  
+ 
  # for write file ##########
  addi $sp, $sp, -8
  sw $a0, 0($sp)
@@ -403,14 +402,15 @@ rotate_clkws_180:
  # inputs: a0=buffer, a1=filename
  # registers changed: a0, a1, t0, t1, t2, t3, t4, t5, t6, t7, t8
  # for write file ##########
+ addi $sp, $sp, -8
  sw $a0, 0($sp)
  sw $a1, 4($sp)
- addi $sp, $sp, 8
- move $t5, $sp
  ############################
+ li $t5, 2
  _180_starting_line:
- lw $t1, 0($a0)
- lw $t0, 4($a0)
+ addi $t5,$t5, -1
+ lw $t0, 0($a0)
+ lw $t1, 4($a0)
  # number of elements in matrix
  mul $t2, $t0, $t1
  # track half elements
@@ -418,17 +418,16 @@ rotate_clkws_180:
  #div $t2, $t5
  #mflo $t5
  # track size
- #addi $t2, $t2, 2 # row/col
- li $t3, 4
+ addi $t2, $t2, 2 # row/col
+ li $t3, -4
  mul $t2, $t2, $t3 # word is 4
- # add $sp, $sp, $t2 # make space in the stack for everyone :)
+ add $sp, $sp, $t2 # make space in the stack for everyone :)
  sw $t1, 0($sp)
  sw $t0, 4($sp)
- addi $sp, $sp, 4
  move $t3, $t0 # t3 track cols
- add $sp, $sp, $t2 # t0 can jump around locations in the stack, sp will save location
  move $t0, $sp
-
+ addi $t0, $t0, 8 # t0 can jump around locations in the stack, sp will save location
+ 
  # loop to go thru rest of buffer
  # implementation:
  # - jump from current item location in buffer to expected in stack
@@ -438,50 +437,51 @@ rotate_clkws_180:
  # t0, track sp, new buffer
  # t4, track a0, curr buffer
  move $t4, $a0
- addi $t4, $t4, 8
  # t2, size of sp, -(rows*cols + 2)*4
  # t5, beq counter
  # t6, running total, counter
  # t7, find location in t4
  # t8, temp
  # the rows go in order
- li $t6, 0
+ li $t6, 1
+ bltz $t5, write_file_rotate_180
  flip_180_rows:
-  beq $t6, $t2, write_to_buffer_rotate_180
-  lw $t7, 0($t4)
-  sw $t7, 0($t0)
-  addi $t0, $t0, -4
-  addi $t4, $t4, 4
-  addi $t6, $t6, 4
+  # num cols * (num rows -1)
+  addi $t7, $t3, -1 # rows - 1 | 2 | 1
+    addi $t3, $t3, -1 # | 1 | 0
+  mul $t7, $t7, $t1 # * col | 6 | 3
+  add $t7, $t7, $t6  # + run_total | 7
+  addi $t7, $t7, 1 # indexed at 0 | 6
+  li $t8, 4 # temp var
+  mul $t7, $t7, $t8 # location in memory is in units of 4
+  add $t4, $t4, $t7 # a0
+  lw $t8, 0($t4) # t8 | 7
+  sub $t4, $t4, $t7
+  sw $t8, 0($t0) # sp
+  addi $t0, $t0, 4
+  beqz $t3, rotate_180_reset_row_subtract_column # fix later
   j flip_180_rows
- write_to_buffer_rotate_180:
+  rotate_180_reset_row_subtract_column:
+   lw $t3, 4($sp)
+   addi $t6, $t6, 1
+   bgt $t6, $t1, before_180_starting_line
+   j flip_180_rows
+ before_180_starting_line:
   # rewrite to buffer
-  addi $t2, $t2, 4
-  sub $sp, $sp, $t2
   move $a2, $t2
   move $a1, $sp
-  move $t6, $a1
-  move $t4, $a0
-start_180_buffer_loop:
- beqz $a2, _180end_write_to_buffer
- lw $t9, 0($t6)
- sw $t9, 0($t4)
- addi $t6, $t6, 4
- addi $t4, $t4, 4
- addi $a2, $a2, -4
- j start_180_buffer_loop
- _180end_write_to_buffer:
-  # addi $sp, $sp, -12
-  # sw $ra, 0($sp)
-  # jal write_to_buffer
-  # lw $ra, 0($sp)
-  # addi $sp, $sp, 12
+  addi $sp, $sp, -4
+  sw $ra, 0($sp)
+  jal write_to_buffer
+  lw $ra, 0($sp)
+  addi $sp, $sp, 4
   # back to normal
   li $t6, -1
   mul $t2, $t2, $t6
-  addi $sp, $sp, -8 # make space in the stack for everyone :)
-  # lw $a0, 0($sp)
-  # lw $a1, 4($sp)
+  add $sp, $sp, $t2 # make space in the stack for everyone :)
+  lw $a0, 0($sp)
+  lw $a1, 4($sp)
+  j _180_starting_line
  
  write_file_rotate_180:
   # write file
@@ -502,12 +502,9 @@ start_180_buffer_loop:
    beq $t6, $t7, call_write_file_rotate_180
    j write_file_loop_rotate_180
    call_write_file_rotate_180:
-   move $sp, $t5
-   addi $sp, $sp, -8
    lw $a0, 4($sp)
    lw $a1, 0($sp)
    addi $sp, $sp, 8
-  #  addi $a0, $a0, 4
    # a0 = filename, a1 = buffer
    addi $sp, $sp, -4
    sw $ra, 0($sp)
@@ -826,7 +823,6 @@ duplicate:
       jr $ra
     skip_return_minus_one:
      li $v0, -1
-     li $v1, 0
      jr $ra
 
 .globl write_to_buffer
