@@ -3,7 +3,7 @@
     {
       "name": "Hw3Test",
       "setup": "",
-      "run": "java -jar munit.jar tests/CustomTest.class hw3.asm",
+      "run": "javac -cp munit.jar tests/CustomTest.java && java -jar munit.jar tests/CustomTest.class hw3.asm",
       "input": "",
       "output": "",
       "comparison": "included",
