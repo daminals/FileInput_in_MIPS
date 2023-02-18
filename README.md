@@ -1,3 +1,4 @@
+[![Unit Tests](https://github.com/daminals/FileInput_in_MIPS/actions/workflows/classroom.yml/badge.svg)](https://github.com/daminals/FileInput_in_MIPS/actions/workflows/classroom.yml)
 # Homework 3
 
 ## Learning Outcomes
